@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Maze Ball Runner</string>
+    <string name="title_activity_main">Maze Ball Runner</string>
+    <string name="package_name">com.mazerunnerball.app</string>
+    <string name="custom_url_scheme">com.mazerunnerball.app</string>
+</resources>

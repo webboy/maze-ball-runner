@@ -1,0 +1,14 @@
+{
+  "name": "maze-ball-runner",
+  "version": "0.0.1",
+  "description": "A simple game concept",
+  "author": "webboy <extramedia.nemanja@gmail.com>",
+  "dependencies": {
+    "@capacitor/android": "^7.0.1",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/cli": "^7.0.1",
+    "@capacitor/core": "^7.0.1",
+    "@capacitor/motion": "^7.0.0",
+    "@jcesarmobile/ssl-skip": "^0.4.0"
+  }
+}
