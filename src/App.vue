@@ -8,34 +8,36 @@
         <div>Y Tilt: {{ tilt.y.toFixed(2) }}</div>
         <div>X Accel: {{ acceleration.x.toFixed(2) }}</div>
         <div>Y Accel: {{ acceleration.y.toFixed(2) }}</div>
-        <div>Z Accel: {{ acceleration.z.toFixed(2) }}</div>
         <div>Ball X: {{ ballPosition.x.toFixed(2) }}</div>
         <div>Ball Y: {{ ballPosition.y.toFixed(2) }}</div>
       </q-card-section>
     </q-card>
     <div class="zoom-controls">
-      <q-btn
-        round
-        color="primary"
-        icon="add"
-        @click="zoomIn"
-        :disable="cameraHeight <= MIN_CAMERA_HEIGHT"
-      />
-      <q-btn
-        round
-        color="primary"
-        icon="remove"
-        @click="zoomOut"
-        :disable="cameraHeight >= MAX_CAMERA_HEIGHT"
-        class="q-ml-sm"
-      />
+      <q-fab
+        icon="camera"
+        direction="up"
+        >
+        <q-fab-action
+          color="primary"
+          icon="zoom_in"
+          @click.stop="zoomIn"
+          :disable="cameraHeight <= MIN_CAMERA_HEIGHT"
+          />
+        <q-fab-action
+          color="primary"
+          icon="zoom_out"
+          @click.stop="zoomOut"
+          :disable="cameraHeight >= MAX_CAMERA_HEIGHT"
+          />
+      </q-fab>
+
     </div>
     <div class="jump-controls">
       <q-btn
-        round
-        large
+        size="lg"
+        rounded
         color="secondary"
-        icon="jump"
+        icon="arrow_upward"
         @click="jump"
         :disable="!canJump"
       />
@@ -53,7 +55,7 @@ const canvas = ref(null)
 const tilt = ref({ x: 0, y: 0 })
 const acceleration = ref({ x: 0, y: 0, z: 0 })
 const ballPosition = ref({ x: 0, y: 0 })
-const cameraHeight = ref(65)  // Initial camera height
+const cameraHeight = ref(70)  // Initial camera height
 const canJump = ref(true)  // Track if ball can jump
 
 // Game settings
@@ -68,9 +70,9 @@ const GRAVITY = 0.005      // Controls how fast ball falls
 const FRICTION = 0.95
 const MIN_CAMERA_HEIGHT = 40
 const MAX_CAMERA_HEIGHT = 70
-const ZOOM_STEP = 1
+const ZOOM_STEP = 5
 const BOUNCE_DAMPING = 0.5 // Controls bounce energy loss
-const JUMP_COOLDOWN = 500  // Milliseconds between jumps
+const JUMP_COOLDOWN = 20  // Milliseconds between jumps
 
 // Three.js components
 let scene, camera, renderer, ball
@@ -106,11 +108,63 @@ const createScene = () => {
 
 const createBoard = () => {
   const geometry = new THREE.PlaneGeometry(PANEL_SIZE, PANEL_SIZE)
+
+  // Create canvas for tile texture
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  canvas.width = 512
+  canvas.height = 512
+
+  // Set background color
+  context.fillStyle = '#f0f0f0'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  // Draw tile grid
+  const tileSize = canvas.width / 10  // 10x10 grid
+  context.strokeStyle = '#e0e0e0'
+  context.lineWidth = 2
+
+  // Vertical lines
+  for (let x = 0; x <= 10; x++) {
+    context.beginPath()
+    context.moveTo(x * tileSize, 0)
+    context.lineTo(x * tileSize, canvas.height)
+    context.stroke()
+  }
+
+  // Horizontal lines
+  for (let y = 0; y <= 10; y++) {
+    context.beginPath()
+    context.moveTo(0, y * tileSize)
+    context.lineTo(canvas.width, y * tileSize)
+    context.stroke()
+  }
+
+  // Slight texture variation
+  context.globalAlpha = 0.05
+  context.fillStyle = 'black'
+  for (let x = 0; x < 10; x++) {
+    for (let y = 0; y < 10; y++) {
+      if ((x + y) % 2 === 0) {
+        context.fillRect(x * tileSize, y * tileSize, tileSize, tileSize)
+      }
+    }
+  }
+  context.globalAlpha = 1
+
+  // Create texture from canvas
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(3, 3)  // Adjust repeat to match board size
+
   const material = new THREE.MeshStandardMaterial({
+    map: texture,
     color: 0xffffff,
     metalness: 0.1,
     roughness: 0.7
   })
+
   const board = new THREE.Mesh(geometry, material)
   board.rotation.x = -Math.PI / 2
   scene.add(board)
