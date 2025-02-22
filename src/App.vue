@@ -30,6 +30,16 @@
         class="q-ml-sm"
       />
     </div>
+    <div class="jump-controls">
+      <q-btn
+        round
+        large
+        color="secondary"
+        icon="jump"
+        @click="jump"
+        :disable="!canJump"
+      />
+    </div>
   </div>
 </template>
 
@@ -44,6 +54,7 @@ const tilt = ref({ x: 0, y: 0 })
 const acceleration = ref({ x: 0, y: 0, z: 0 })
 const ballPosition = ref({ x: 0, y: 0 })
 const cameraHeight = ref(65)  // Initial camera height
+const canJump = ref(true)  // Track if ball can jump
 
 // Game settings
 const PANEL_SIZE = 30
@@ -52,14 +63,19 @@ const WALL_THICKNESS = 1
 const BALL_RADIUS = 1
 const SENSITIVITY = 0.001
 const ACCELERATION_MULTIPLIER = 0.005
+const JUMP_VELOCITY = 0.4  // Controlled jump velocity
+const GRAVITY = 0.005      // Controls how fast ball falls
 const FRICTION = 0.95
 const MIN_CAMERA_HEIGHT = 40
 const MAX_CAMERA_HEIGHT = 70
 const ZOOM_STEP = 1
+const BOUNCE_DAMPING = 0.5 // Controls bounce energy loss
+const JUMP_COOLDOWN = 500  // Milliseconds between jumps
 
 // Three.js components
 let scene, camera, renderer, ball
 let ballVelocity = new THREE.Vector3()
+let lastJumpTime = 0
 
 const createScene = () => {
   scene = new THREE.Scene()
@@ -122,6 +138,8 @@ const createWalls = () => {
   })
 }
 
+let ballShadow
+
 const createBall = () => {
   const geometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32)
 
@@ -167,6 +185,33 @@ const createBall = () => {
   ball = new THREE.Mesh(geometry, material)
   ball.position.set(0, BALL_RADIUS, 0)
   scene.add(ball)
+
+  // Create ball shadow
+  const shadowGeometry = new THREE.CircleGeometry(BALL_RADIUS, 32)
+  const shadowMaterial = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.3
+  })
+  ballShadow = new THREE.Mesh(shadowGeometry, shadowMaterial)
+  ballShadow.rotation.x = -Math.PI / 2  // Rotate to lie flat on the ground
+  ballShadow.position.set(0, 0.01, 0)  // Slightly above ground to prevent z-fighting
+  scene.add(ballShadow)
+}
+
+const jump = () => {
+  const currentTime = Date.now()
+  // Check if ball is on ground and enough time has passed since last jump
+  if (ball.position.y <= BALL_RADIUS && currentTime - lastJumpTime > JUMP_COOLDOWN) {
+    ballVelocity.y = JUMP_VELOCITY
+    lastJumpTime = currentTime
+    canJump.value = false
+
+    // Re-enable jumping after a short delay
+    setTimeout(() => {
+      canJump.value = true
+    }, JUMP_COOLDOWN)
+  }
 }
 
 const updatePhysics = () => {
@@ -174,17 +219,26 @@ const updatePhysics = () => {
   ballVelocity.x += tilt.value.x * SENSITIVITY
   ballVelocity.z += tilt.value.y * SENSITIVITY
 
-  // Apply acceleration forces
+  // Apply acceleration forces for horizontal movement
   ballVelocity.x -= acceleration.value.x * ACCELERATION_MULTIPLIER
-  ballVelocity.z += acceleration.value.y * ACCELERATION_MULTIPLIER
+  ballVelocity.z += acceleration.value.z * ACCELERATION_MULTIPLIER
 
-  ballVelocity.multiplyScalar(FRICTION)
+  // Apply gravity
+  ballVelocity.y -= GRAVITY
 
+  // Apply friction to horizontal movement only
+  ballVelocity.x *= FRICTION
+  ballVelocity.z *= FRICTION
+
+  // Update positions
   const nextX = ball.position.x + ballVelocity.x
+  const nextY = ball.position.y + ballVelocity.y
   const nextZ = ball.position.z + ballVelocity.z
 
+  // Handle horizontal bounds
   const bounds = (PANEL_SIZE / 2) - BALL_RADIUS - (WALL_THICKNESS / 2)
 
+  // X-axis constraint
   if (Math.abs(nextX) >= bounds) {
     ball.position.x = Math.sign(nextX) * bounds
     ballVelocity.x = 0
@@ -192,6 +246,7 @@ const updatePhysics = () => {
     ball.position.x = nextX
   }
 
+  // Z-axis constraint
   if (Math.abs(nextZ) >= bounds) {
     ball.position.z = Math.sign(nextZ) * bounds
     ballVelocity.z = 0
@@ -199,12 +254,34 @@ const updatePhysics = () => {
     ball.position.z = nextZ
   }
 
+  // Y-axis constraint (ground)
+  if (nextY <= BALL_RADIUS) {
+    ball.position.y = BALL_RADIUS
+    if (ballVelocity.y < 0) {  // Only bounce if moving downward
+      ballVelocity.y = -ballVelocity.y * BOUNCE_DAMPING
+    }
+  } else {
+    ball.position.y = nextY
+  }
+
+  // Update ball rotation based on movement
   ball.rotation.x += ballVelocity.z * 0.5
   ball.rotation.z -= ballVelocity.x * 0.5
 
+  // Update position for UI
   ballPosition.value = {
     x: ball.position.x,
     y: ball.position.z
+  }
+
+  // Update shadow position and scale based on ball height
+  if (ballShadow) {
+    ballShadow.position.x = ball.position.x
+    ballShadow.position.z = ball.position.z
+
+    // Adjust shadow scale based on ball height (more compressed when higher)
+    const heightFactor = Math.max(0.3, 1 - (ball.position.y / (BALL_RADIUS * 10)))
+    ballShadow.scale.set(heightFactor, heightFactor, 1)
   }
 }
 
@@ -250,9 +327,9 @@ const startSensors = async () => {
     // Start accelerometer
     await Motion.addListener('accel', event => {
       acceleration.value = {
-        x: event.acceleration.x || 0,
-        y: event.acceleration.y || 0,
-        z: event.acceleration.z || 0
+        x: event.acceleration.x || 0,    // phone's X (left/right)
+        y: event.acceleration.z || 0,    // phone's Z becomes our Y (up/down)
+        z: -event.acceleration.y || 0    // phone's -Y becomes our Z (forward/back)
       }
     })
   } catch (error) {
@@ -306,5 +383,12 @@ canvas {
   right: 2rem;
   display: flex;
   gap: 0.5rem;
+}
+
+.jump-controls {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
 }
 </style>
