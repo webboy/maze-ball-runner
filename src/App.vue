@@ -10,27 +10,27 @@
         <div>Y Accel: {{ acceleration.y.toFixed(2) }}</div>
         <div>Ball X: {{ ballPosition.x.toFixed(2) }}</div>
         <div>Ball Y: {{ ballPosition.y.toFixed(2) }}</div>
+        <div>Jump Charge: {{ jumpCharge.toFixed(2) }}</div>
       </q-card-section>
     </q-card>
     <div class="zoom-controls">
       <q-fab
         icon="camera"
         direction="up"
-        >
+      >
         <q-fab-action
           color="primary"
           icon="zoom_in"
           @click.stop="zoomIn"
           :disable="cameraHeight <= MIN_CAMERA_HEIGHT"
-          />
+        />
         <q-fab-action
           color="primary"
           icon="zoom_out"
           @click.stop="zoomOut"
           :disable="cameraHeight >= MAX_CAMERA_HEIGHT"
-          />
+        />
       </q-fab>
-
     </div>
     <div class="jump-controls">
       <q-btn
@@ -38,7 +38,10 @@
         rounded
         color="secondary"
         icon="arrow_upward"
-        @click="jump"
+        @mousedown="startJumpCharge"
+        @mouseup="executeJump"
+        @touchstart.prevent="startJumpCharge"
+        @touchend.prevent="executeJump"
         :disable="!canJump"
       />
     </div>
@@ -57,6 +60,7 @@ const acceleration = ref({ x: 0, y: 0, z: 0 })
 const ballPosition = ref({ x: 0, y: 0 })
 const cameraHeight = ref(70)  // Initial camera height
 const canJump = ref(true)  // Track if ball can jump
+const jumpCharge = ref(0)  // Track jump charge level
 
 // Game settings
 const PANEL_SIZE = 30
@@ -65,7 +69,9 @@ const WALL_THICKNESS = 1
 const BALL_RADIUS = 1
 const SENSITIVITY = 0.001
 const ACCELERATION_MULTIPLIER = 0.005
-const JUMP_VELOCITY = 0.4  // Controlled jump velocity
+const BASE_JUMP_VELOCITY = 0  // Base jump velocity
+const MAX_JUMP_VELOCITY = 0.75   // Maximum jump velocity
+const JUMP_VELOCITY_INCREMENT = 0.01  // Velocity increase per 500ms
 const GRAVITY = 0.005      // Controls how fast ball falls
 const FRICTION = 0.95
 const MIN_CAMERA_HEIGHT = 40
@@ -73,11 +79,58 @@ const MAX_CAMERA_HEIGHT = 70
 const ZOOM_STEP = 5
 const BOUNCE_DAMPING = 0.5 // Controls bounce energy loss
 const JUMP_COOLDOWN = 20  // Milliseconds between jumps
+const CHARGE_INTERVAL = 30  // Milliseconds to increase jump velocity
 
 // Three.js components
 let scene, camera, renderer, ball
 let ballVelocity = new THREE.Vector3()
 let lastJumpTime = 0
+
+// Jump charge tracking
+let jumpChargeInterval = null
+let jumpStartTime = 0
+
+const startJumpCharge = () => {
+  if (!canJump.value) return
+
+  jumpStartTime = Date.now()
+  jumpCharge.value = BASE_JUMP_VELOCITY
+
+  // Increase jump charge at set intervals
+  jumpChargeInterval = setInterval(() => {
+    jumpCharge.value = Math.min(
+      MAX_JUMP_VELOCITY,
+      BASE_JUMP_VELOCITY + Math.floor((Date.now() - jumpStartTime) / CHARGE_INTERVAL) * JUMP_VELOCITY_INCREMENT
+    )
+  }, CHARGE_INTERVAL)
+}
+
+const executeJump = () => {
+  // Clear the interval
+  if (jumpChargeInterval) {
+    clearInterval(jumpChargeInterval)
+    jumpChargeInterval = null
+  }
+
+  const currentTime = Date.now()
+  // Check if ball is on ground and enough time has passed since last jump
+  if (ball.position.y <= BALL_RADIUS && currentTime - lastJumpTime > JUMP_COOLDOWN) {
+    ballVelocity.y = jumpCharge.value
+    lastJumpTime = currentTime
+    canJump.value = false
+
+    // Reset jump charge
+    jumpCharge.value = 0
+
+    // Re-enable jumping after a short delay
+    setTimeout(() => {
+      canJump.value = true
+    }, JUMP_COOLDOWN)
+  }
+
+  // Reset jump charge
+  jumpCharge.value = 0
+}
 
 const createScene = () => {
   scene = new THREE.Scene()
@@ -251,21 +304,6 @@ const createBall = () => {
   ballShadow.rotation.x = -Math.PI / 2  // Rotate to lie flat on the ground
   ballShadow.position.set(0, 0.01, 0)  // Slightly above ground to prevent z-fighting
   scene.add(ballShadow)
-}
-
-const jump = () => {
-  const currentTime = Date.now()
-  // Check if ball is on ground and enough time has passed since last jump
-  if (ball.position.y <= BALL_RADIUS && currentTime - lastJumpTime > JUMP_COOLDOWN) {
-    ballVelocity.y = JUMP_VELOCITY
-    lastJumpTime = currentTime
-    canJump.value = false
-
-    // Re-enable jumping after a short delay
-    setTimeout(() => {
-      canJump.value = true
-    }, JUMP_COOLDOWN)
-  }
 }
 
 const updatePhysics = () => {
