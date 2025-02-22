@@ -39,7 +39,7 @@ import * as THREE from 'three'
 const canvas = ref(null)
 const tilt = ref({ x: 0, y: 0 })
 const ballPosition = ref({ x: 0, y: 0 })
-const cameraHeight = ref(62)  // Initial camera height
+const cameraHeight = ref(65)  // Initial camera height
 
 // Game settings
 const PANEL_SIZE = 30
@@ -119,11 +119,46 @@ const createWalls = () => {
 
 const createBall = () => {
   const geometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32)
+
+  // Create canvas for texture
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  canvas.width = 256
+  canvas.height = 256
+
+  // Create pattern
+  context.fillStyle = '#e60000'  // Base red color
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  // Add stripes
+  context.fillStyle = '#ff3333'  // Lighter red for stripes
+  const stripeWidth = canvas.width / 8
+  for (let i = 0; i < canvas.height; i += stripeWidth * 2) {
+    context.fillRect(0, i, canvas.width, stripeWidth)
+  }
+
+  // Add some circular patterns
+  context.strokeStyle = '#cc0000'  // Darker red for circles
+  context.lineWidth = 2
+  for (let i = 0; i < 4; i++) {
+    const radius = canvas.width / 4 * (i + 1)
+    context.beginPath()
+    context.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2)
+    context.stroke()
+  }
+
+  // Create texture from canvas
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(2, 2)
+
   const material = new THREE.MeshStandardMaterial({
-    color: 0xe60000,
+    map: texture,
     metalness: 0.3,
     roughness: 0.4
   })
+
   ball = new THREE.Mesh(geometry, material)
   ball.position.set(0, BALL_RADIUS, 0)
   scene.add(ball)
