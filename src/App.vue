@@ -6,6 +6,9 @@
       <q-card-section>
         <div>X Tilt: {{ tilt.x.toFixed(2) }}</div>
         <div>Y Tilt: {{ tilt.y.toFixed(2) }}</div>
+        <div>X Accel: {{ acceleration.x.toFixed(2) }}</div>
+        <div>Y Accel: {{ acceleration.y.toFixed(2) }}</div>
+        <div>Z Accel: {{ acceleration.z.toFixed(2) }}</div>
         <div>Ball X: {{ ballPosition.x.toFixed(2) }}</div>
         <div>Ball Y: {{ ballPosition.y.toFixed(2) }}</div>
       </q-card-section>
@@ -38,6 +41,7 @@ import * as THREE from 'three'
 // Template refs
 const canvas = ref(null)
 const tilt = ref({ x: 0, y: 0 })
+const acceleration = ref({ x: 0, y: 0, z: 0 })
 const ballPosition = ref({ x: 0, y: 0 })
 const cameraHeight = ref(65)  // Initial camera height
 
@@ -47,6 +51,7 @@ const WALL_HEIGHT = 2
 const WALL_THICKNESS = 1
 const BALL_RADIUS = 1
 const SENSITIVITY = 0.001
+const ACCELERATION_MULTIPLIER = 0.005
 const FRICTION = 0.95
 const MIN_CAMERA_HEIGHT = 40
 const MAX_CAMERA_HEIGHT = 70
@@ -165,8 +170,13 @@ const createBall = () => {
 }
 
 const updatePhysics = () => {
+  // Apply tilt forces
   ballVelocity.x += tilt.value.x * SENSITIVITY
   ballVelocity.z += tilt.value.y * SENSITIVITY
+
+  // Apply acceleration forces
+  ballVelocity.x -= acceleration.value.x * ACCELERATION_MULTIPLIER
+  ballVelocity.z += acceleration.value.y * ACCELERATION_MULTIPLIER
 
   ballVelocity.multiplyScalar(FRICTION)
 
@@ -227,16 +237,26 @@ const handleResize = () => {
   renderer.setSize(width, height)
 }
 
-const startOrientation = async () => {
+const startSensors = async () => {
   try {
+    // Start orientation sensor
     await Motion.addListener('orientation', event => {
       tilt.value = {
         x: event.gamma || 0,
         y: event.beta || 0
       }
     })
+
+    // Start accelerometer
+    await Motion.addListener('accel', event => {
+      acceleration.value = {
+        x: event.acceleration.x || 0,
+        y: event.acceleration.y || 0,
+        z: event.acceleration.z || 0
+      }
+    })
   } catch (error) {
-    console.error('Error accessing device orientation:', error)
+    console.error('Error accessing device sensors:', error)
   }
 }
 
@@ -248,7 +268,7 @@ const animate = () => {
 
 onMounted(async () => {
   createScene()
-  await startOrientation()
+  await startSensors()
   animate()
   window.addEventListener('resize', handleResize)
 })
