@@ -3,7 +3,9 @@
   "appName": "Maze Ball Runner",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "url": "https://192.168.1.111:9500",
+    "cleartext": true
   },
   "plugins": {
     "Motion": {
