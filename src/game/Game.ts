@@ -82,7 +82,7 @@ export class Game{
         }
     }
 
-    updatePhysics = (ballVelocity: Vector3D, tilt: Vector2D, acceleration: Vector3D, ballPosition: Ref): void => {
+    updatePhysics = (ballVelocity: Vector3D, tilt: Vector2D, acceleration: Vector3D): Vector2D => {
         // Update camera position
         this.updateCameraPosition()
         // Apply tilt forces
@@ -99,10 +99,6 @@ export class Game{
         // Apply friction to horizontal movement only
         ballVelocity.x *= this.gameOptions.FRICTION
         ballVelocity.z *= this.gameOptions.FRICTION
-
-        if (!this.gameBall) {
-            return
-        }
 
         // Update positions
         const nextX = this.gameBall.ball.position.x + ballVelocity.x
@@ -143,7 +139,7 @@ export class Game{
         this.gameBall.ball.rotation.z -= ballVelocity.x * 0.5
 
         // Update position for UI
-        ballPosition.value = {
+        const ballPosition :Vector2D = {
             x: this.gameBall.ball.position.x,
             y: this.gameBall.ball.position.z
         }
@@ -157,6 +153,8 @@ export class Game{
             const heightFactor = Math.max(0.3, 1 - (this.gameBall.ball.position.y / (this.gameOptions.BALL_RADIUS * 10)))
             this.gameBall.shadow.scale.set(heightFactor, heightFactor, 1)
         }
+
+        return ballPosition
     }
 
     updateCameraPosition = () => {

@@ -119,7 +119,7 @@ const JUMP_COOLDOWN = 20  // Milliseconds between jumps
 const CHARGE_INTERVAL = 30  // Milliseconds to increase jump velocity
 
 // Three.js components
-let scene, camera, renderer, ball, ballShadow
+let scene, camera, renderer, ball, ballShadow, gameInstance
 let ballVelocity = new THREE.Vector3()
 let lastJumpTime = 0
 
@@ -180,7 +180,7 @@ const executeJump = () => {
 
 const createScene = () => {
 
-    const gameInstance = new Game(
+    gameInstance = new Game(
         canvas,
         GAME_CONFIG,
         cameraHeight
@@ -208,77 +208,11 @@ const createScene = () => {
 }
 
 const updatePhysics = () => {
-    // Update camera position
-    updateCameraPosition()
-
-    // Apply tilt forces
-    ballVelocity.x += tilt.value.x * SENSITIVITY
-    ballVelocity.z += tilt.value.y * SENSITIVITY
-
-    // Apply acceleration forces for horizontal movement
-    ballVelocity.x -= acceleration.value.x * ACCELERATION_MULTIPLIER
-    ballVelocity.z += acceleration.value.z * ACCELERATION_MULTIPLIER
-
-    // Apply gravity
-    ballVelocity.y -= GRAVITY
-
-    // Apply friction to horizontal movement only
-    ballVelocity.x *= FRICTION
-    ballVelocity.z *= FRICTION
-
-    // Update positions
-    const nextX = ball.position.x + ballVelocity.x
-    const nextY = ball.position.y + ballVelocity.y
-    const nextZ = ball.position.z + ballVelocity.z
-
-    // Handle horizontal bounds
-    const bounds = (PANEL_SIZE / 2) - BALL_RADIUS - (WALL_THICKNESS / 2)
-
-    // X-axis constraint
-    if (Math.abs(nextX) >= bounds) {
-        ball.position.x = Math.sign(nextX) * bounds
-        ballVelocity.x = 0
-    } else {
-        ball.position.x = nextX
-    }
-
-    // Z-axis constraint
-    if (Math.abs(nextZ) >= bounds) {
-        ball.position.z = Math.sign(nextZ) * bounds
-        ballVelocity.z = 0
-    } else {
-        ball.position.z = nextZ
-    }
-
-    // Y-axis constraint (ground)
-    if (nextY <= BALL_RADIUS) {
-        ball.position.y = BALL_RADIUS
-        if (ballVelocity.y < 0) {  // Only bounce if moving downward
-            ballVelocity.y = -ballVelocity.y * BOUNCE_DAMPING
-        }
-    } else {
-        ball.position.y = nextY
-    }
-
-    // Update ball rotation based on movement
-    ball.rotation.x += ballVelocity.z * 0.5
-    ball.rotation.z -= ballVelocity.x * 0.5
-
-    // Update position for UI
-    ballPosition.value = {
-        x: ball.position.x,
-        y: ball.position.z
-    }
-
-    // Update shadow position and scale based on ball height
-    if (ballShadow) {
-        ballShadow.position.x = ball.position.x
-        ballShadow.position.z = ball.position.z
-
-        // Adjust shadow scale based on ball height (more compressed when higher)
-        const heightFactor = Math.max(0.3, 1 - (ball.position.y / (BALL_RADIUS * 10)))
-        ballShadow.scale.set(heightFactor, heightFactor, 1)
-    }
+    ballPosition.value = gameInstance.updatePhysics(
+        ballVelocity,
+        tilt.value,
+        acceleration.value
+    )
 }
 
 const zoomIn = () => {
