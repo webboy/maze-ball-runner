@@ -1,4 +1,4 @@
-# Maze Ball Runner (maze-ball-runner)
+# Maze MasterBall Runner (maze-ball-runner)
 
 A simple game concept
 
