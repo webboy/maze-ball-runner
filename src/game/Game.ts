@@ -6,6 +6,7 @@ import { GameRenderer } from 'src/game/GameRenderer';
 import { GAME_CONFIG} from 'src/game/configuration';
 import { MainBoard } from 'src/game/objects/MainBoard';
 import { GameBall, GameWall, Vector2D, Vector3D } from 'src/game/types';
+import * as THREE from 'three';
 import { Wall } from 'src/game/objects/Wall';
 import { MasterBall } from 'src/game/objects/MasterBall';
 import { MasterBallShadow } from 'src/game/objects/MasterBallShadow';
@@ -17,7 +18,7 @@ export class Game{
     scene: MainScene
     camera: MainCamera
     renderer: GameRenderer
-    gameBall: GameBall | null
+    gameBall: GameBall
     gameOptions: typeof GAME_CONFIG
     cameraHeight: Ref<number>
 
@@ -37,20 +38,19 @@ export class Game{
         const directionalLight = new GameDirectLight(10, 20, 10);
 
         // Add lights to the scene
-        //this.scene.add(ambientLight);
-        //this.scene.add(directionalLight);
+        this.scene.add(ambientLight);
+        this.scene.add(directionalLight);
 
         // Create renderer
         this.renderer = new GameRenderer(canvas);
 
         // Add Board to the scene
-        //this.constructBoard(this.gameOptions.PANEL_SIZE, this.gameOptions.PANEL_SIZE);
+        this.constructBoard(this.gameOptions.PANEL_SIZE, this.gameOptions.PANEL_SIZE);
 
         // Add Game Ball
-        this.gameBall = null
-        // this.gameBall = this.constructGameBall();
-        // this.scene.add(this.gameBall.ball);
-        // this.scene.add(this.gameBall.shadow);
+        this.gameBall = this.constructGameBall();
+        this.scene.add(this.gameBall.ball);
+        this.scene.add(this.gameBall.shadow);
 
 
         // Set Camera Height
@@ -63,15 +63,15 @@ export class Game{
         this.scene.add(new MainBoard(width, height))
     }
 
-    // constructWalls = (walls: GameWall[]):void => {
-    //     console.log('Creating walls...');
-    //     // Create walls
-    //     walls.forEach(wall => {
-    //         const geometry = new THREE.BoxGeometry(...wall.size)
-    //         const WallObject = new Wall(geometry, wall.position)
-    //         this.scene.add(WallObject)
-    //     })
-    // }
+    constructWalls = (walls: GameWall[]):void => {
+        console.log('Creating walls...');
+        // Create walls
+        walls.forEach(wall => {
+            const geometry = new THREE.BoxGeometry(...wall.size)
+            const WallObject = new Wall(geometry, wall.position)
+            this.scene.add(WallObject)
+        })
+    }
 
     constructGameBall = (): GameBall => {
         console.log('Creating the ball...');
