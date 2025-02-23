@@ -154,8 +154,8 @@ export class Game{
             this.gameBall.shadow.position.z = this.gameBall.ball.position.z
 
             // Adjust shadow scale based on ball height (more compressed when higher)
-            const heightFactor = Math.max(0.3, 1 - (this.gameBall.ball.position.y / (this.gameOptions.BALL_RADIUS * 10)))
-            this.gameBall.shadow.scale.set(heightFactor, heightFactor, 1)
+            const scale = Math.max(0.3, 1 - (this.gameBall.ball.position.y / (this.gameOptions.BALL_RADIUS * 10)))
+            this.gameBall.shadow.scale.set(scale, scale, 1)
         }
 
         return ballPosition
