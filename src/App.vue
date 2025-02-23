@@ -41,7 +41,7 @@
       </q-card-section>
       <q-card-section>
         <q-linear-progress
-          :value="(jumpCharge.toFixed(2)/MAX_JUMP_VELOCITY)"
+          :value="jumpChargeProgress"
           :color="jumpChargeColor"
           :animation-speed="0"
           />
@@ -76,19 +76,19 @@
         @mouseup="executeJump"
         @touchstart.prevent="startJumpCharge"
         @touchend.prevent="executeJump"
-        :disable="!canJump"
       />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue';
 import { Motion } from '@capacitor/motion'
-import * as THREE from 'three'
 import { Game } from 'src/game/Game';
 import { GAME_CONFIG } from 'src/game/configuration';
 
+// Change gameInstance to be reactive
+const gameInstance = shallowRef(null);
 
 // Template refs
 const canvas = ref(null)
@@ -96,100 +96,67 @@ const tilt = ref({ x: 0, y: 0 })
 const acceleration = ref({ x: 0, y: 0, z: 0 })
 const ballPosition = ref({ x: 0, y: 0 })
 const cameraHeight = ref(70)  // Initial camera height
-const canJump = ref(true)  // Track if ball can jump
-const jumpCharge = ref(0)  // Track jump charge level
 
 // Game settings
 const PANEL_SIZE = 30
 const WALL_HEIGHT = 2
 const WALL_THICKNESS = 1
-const BALL_RADIUS = 1
-const SENSITIVITY = 0.001
-const ACCELERATION_MULTIPLIER = 0.005
-const BASE_JUMP_VELOCITY = 0  // Base jump velocity
-const MAX_JUMP_VELOCITY = 0.75   // Maximum jump velocity
-const JUMP_VELOCITY_INCREMENT = 0.01  // Velocity increase per 500ms
-const GRAVITY = 0.005      // Controls how fast ball falls
-const FRICTION = 0.95
 const MIN_CAMERA_HEIGHT = 40
 const MAX_CAMERA_HEIGHT = 70
 const ZOOM_STEP = 5
-const BOUNCE_DAMPING = 0.5 // Controls bounce energy loss
-const JUMP_COOLDOWN = 20  // Milliseconds between jumps
-const CHARGE_INTERVAL = 30  // Milliseconds to increase jump velocity
 
 // Three.js components
-let scene, camera, renderer, ball, ballShadow, gameInstance
-let ballVelocity = new THREE.Vector3()
-let lastJumpTime = 0
-
-// Jump charge tracking
-let jumpChargeInterval = null
-let jumpStartTime = 0
-
-// Jump charge color based on charge level
-const jumpChargeColor = computed(() => {
-    // Return colors based on charge level. From green to red.
-    if (jumpCharge.value < 0.25) return 'green'
-    if (jumpCharge.value < 0.5) return 'yellow'
-    if (jumpCharge.value < 0.75) return 'orange'
-    return 'red'
-})
+let scene, camera, renderer, ball
 
 const startJumpCharge = () => {
-    if (!canJump.value) return
+    if (gameInstance.value?.gameBall) {
+        gameInstance.value.gameBall.ball.startJumpCharge();
+    }
+};
 
-    jumpStartTime = Date.now()
-    jumpCharge.value = BASE_JUMP_VELOCITY
+const currentCharge = ref(0);
+// Update the computed property to use the reactive charge
+const jumpChargeProgress = computed(() => {
+    return currentCharge.value / GAME_CONFIG.MAX_JUMP_VELOCITY;
+});
 
-    // Increase jump charge at set intervals
-    jumpChargeInterval = setInterval(() => {
-        jumpCharge.value = Math.min(
-            MAX_JUMP_VELOCITY,
-            BASE_JUMP_VELOCITY + Math.floor((Date.now() - jumpStartTime) / CHARGE_INTERVAL) * JUMP_VELOCITY_INCREMENT
-        )
-    }, CHARGE_INTERVAL)
-}
+// Compute the color of the progress bar based on the charge
+const jumpChargeColor = computed(() => {
+    if (jumpChargeProgress.value < 0.5) {
+        return 'primary';
+    } else if (jumpChargeProgress.value < 0.8) {
+        return 'warning';
+    } else {
+        return 'negative';
+    }
+});
+
+// Update charge in an interval
+const updateCharge = () => {
+    if (gameInstance.value?.gameBall) {
+        currentCharge.value = gameInstance.value.gameBall.ball.getJumpCharge();
+    }
+    requestAnimationFrame(updateCharge);
+};
 
 const executeJump = () => {
-    // Clear the interval
-    if (jumpChargeInterval) {
-        clearInterval(jumpChargeInterval)
-        jumpChargeInterval = null
+    if (gameInstance.value?.gameBall) {
+        gameInstance.value.gameBall.ball.executeJump();
     }
-
-    const currentTime = Date.now()
-    // Check if ball is on ground and enough time has passed since last jump
-    if (ball.position.y <= BALL_RADIUS && currentTime - lastJumpTime > JUMP_COOLDOWN) {
-        ballVelocity.y = jumpCharge.value
-        lastJumpTime = currentTime
-        canJump.value = false
-
-        // Reset jump charge
-        jumpCharge.value = 0
-
-        // Re-enable jumping after a short delay
-        setTimeout(() => {
-            canJump.value = true
-        }, JUMP_COOLDOWN)
-    }
-
-    // Reset jump charge
-    jumpCharge.value = 0
-}
+};
 
 const createScene = () => {
 
-    gameInstance = new Game(
+    gameInstance.value = new Game(
         canvas,
         GAME_CONFIG,
         cameraHeight
     )
 
-    scene = gameInstance.scene
-    camera = gameInstance.camera
+    scene = gameInstance.value.scene
+    camera = gameInstance.value.camera
 
-    renderer = gameInstance.renderer
+    renderer = gameInstance.value.renderer
 
     const walls = [
         { size: [PANEL_SIZE, WALL_HEIGHT, WALL_THICKNESS], position: [0, WALL_HEIGHT/2, -PANEL_SIZE/2] },
@@ -198,18 +165,14 @@ const createScene = () => {
         { size: [WALL_THICKNESS, WALL_HEIGHT, PANEL_SIZE], position: [PANEL_SIZE/2, WALL_HEIGHT/2, 0] }
     ]
 
-    gameInstance.constructWalls(walls)
+    gameInstance.value.constructWalls(walls)
 
     // Create ball
-    ball = gameInstance.gameBall.ball
-
-    // Create ball shadow
-    ballShadow = gameInstance.gameBall.shadow
+    ball = gameInstance.value.gameBall.ball
 }
 
 const updatePhysics = () => {
-    ballPosition.value = gameInstance.updatePhysics(
-        ballVelocity,
+    ballPosition.value = gameInstance.value.updatePhysics(
         tilt.value,
         acceleration.value
     )
@@ -286,6 +249,7 @@ onMounted(async () => {
     createScene()
     await startSensors()
     animate()
+    updateCharge();
     window.addEventListener('resize', handleResize)
 })
 

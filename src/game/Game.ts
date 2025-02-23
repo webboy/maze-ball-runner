@@ -77,33 +77,37 @@ export class Game{
         console.log('Creating the ball...');
         // Create ball and shadow
         return {
-            ball: new MasterBall(),
+            ball: new MasterBall(this.gameOptions),
             shadow: new MasterBallShadow()
         }
     }
 
-    updatePhysics = (ballVelocity: Vector3D, tilt: Vector2D, acceleration: Vector3D): Vector2D => {
+    updatePhysics = (tilt: Vector2D, acceleration: Vector3D): Vector2D => {
         // Update camera position
         this.updateCameraPosition()
+
+        // Get reference to the ball's actual velocity
+        const velocity = this.gameBall.ball.velocity;
+
         // Apply tilt forces
-        ballVelocity.x += tilt.x * this.gameOptions.SENSITIVITY
-        ballVelocity.z += tilt.y * this.gameOptions.SENSITIVITY
+        velocity.x += tilt.x * this.gameOptions.SENSITIVITY
+        velocity.z += tilt.y * this.gameOptions.SENSITIVITY
 
         // Apply acceleration forces for horizontal movement
-        ballVelocity.x -= acceleration.x * this.gameOptions.ACCELERATION_MULTIPLIER
-        ballVelocity.z += acceleration.z * this.gameOptions.ACCELERATION_MULTIPLIER
+        velocity.x -= acceleration.x * this.gameOptions.ACCELERATION_MULTIPLIER
+        velocity.z += acceleration.z * this.gameOptions.ACCELERATION_MULTIPLIER
 
         // Apply gravity
-        ballVelocity.y -= this.gameOptions.GRAVITY
+        velocity.y -= this.gameOptions.GRAVITY
 
         // Apply friction to horizontal movement only
-        ballVelocity.x *= this.gameOptions.FRICTION
-        ballVelocity.z *= this.gameOptions.FRICTION
+        velocity.x *= this.gameOptions.FRICTION
+        velocity.z *= this.gameOptions.FRICTION
 
         // Update positions
-        const nextX = this.gameBall.ball.position.x + ballVelocity.x
-        const nextY = this.gameBall.ball.position.y + ballVelocity.y
-        const nextZ = this.gameBall.ball.position.z + ballVelocity.z
+        const nextX = this.gameBall.ball.position.x + velocity.x
+        const nextY = this.gameBall.ball.position.y + velocity.y
+        const nextZ = this.gameBall.ball.position.z + velocity.z
 
         // Handle horizontal bounds
         const bounds = (this.gameOptions.PANEL_SIZE / 2) - this.gameOptions.BALL_RADIUS - (this.gameOptions.WALL_THICKNESS / 2)
@@ -111,7 +115,7 @@ export class Game{
         // X-axis constraint
         if (Math.abs(nextX) >= bounds) {
             this.gameBall.ball.position.x = Math.sign(nextX) * bounds
-            ballVelocity.x = 0
+            velocity.x = 0
         } else {
             this.gameBall.ball.position.x = nextX
         }
@@ -119,7 +123,7 @@ export class Game{
         // Z-axis constraint
         if (Math.abs(nextZ) >= bounds) {
             this.gameBall.ball.position.z = Math.sign(nextZ) * bounds
-            ballVelocity.z = 0
+            velocity.z = 0
         } else {
             this.gameBall.ball.position.z = nextZ
         }
@@ -127,16 +131,16 @@ export class Game{
         // Y-axis constraint (ground)
         if (nextY <= this.gameOptions.BALL_RADIUS) {
             this.gameBall.ball.position.y = this.gameOptions.BALL_RADIUS
-            if (ballVelocity.y < 0) {  // Only bounce if moving downward
-                ballVelocity.y = -ballVelocity.y * this.gameOptions.BOUNCE_DAMPING
+            if (velocity.y < 0) {  // Only bounce if moving downward
+                velocity.y = -velocity.y * this.gameOptions.BOUNCE_DAMPING
             }
         } else {
             this.gameBall.ball.position.y = nextY
         }
 
         // Update ball rotation based on movement
-        this.gameBall.ball.rotation.x += ballVelocity.z * 0.5
-        this.gameBall.ball.rotation.z -= ballVelocity.x * 0.5
+        this.gameBall.ball.rotation.x += velocity.z * 0.5
+        this.gameBall.ball.rotation.z -= velocity.x * 0.5
 
         // Update position for UI
         const ballPosition :Vector2D = {

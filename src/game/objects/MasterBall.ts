@@ -1,9 +1,14 @@
 import * as THREE from 'three'
 import { GAME_CONFIG } from 'src/game/configuration';
+import { JumpController } from 'src/game/controllers/JumpController';
 
 export class MasterBall extends THREE.Mesh {
-    constructor() {
-        const geometry = new THREE.SphereGeometry(GAME_CONFIG.BALL_RADIUS, 32, 32)
+    public jumpController: JumpController;
+    public velocity: THREE.Vector3;
+    private readonly gameOptions: typeof GAME_CONFIG;
+
+    constructor(gameOptions: typeof GAME_CONFIG) {
+        const geometry = new THREE.SphereGeometry(gameOptions.BALL_RADIUS, 32, 32)
         // Create canvas for texture
         const canvas = document.createElement('canvas')
         const context = canvas.getContext('2d')
@@ -49,6 +54,25 @@ export class MasterBall extends THREE.Mesh {
 
         super(geometry, material);
 
-        this.position.set(0, GAME_CONFIG.BALL_RADIUS, 0)
+        this.gameOptions = gameOptions
+
+        this.position.set(0, gameOptions.BALL_RADIUS, 0)
+        this.velocity = new THREE.Vector3()
+        this.jumpController = new JumpController(this.gameOptions)
+    }
+
+    startJumpCharge(): void {
+        this.jumpController.startCharge();
+    }
+
+    executeJump(): void {
+
+        if (this.position.y <= this.gameOptions.BALL_RADIUS && this.jumpController.canJump()) {
+            this.velocity.y = this.jumpController.executeJump();
+        }
+    }
+
+    getJumpCharge(): number {
+        return this.jumpController.currentCharge;
     }
 }
