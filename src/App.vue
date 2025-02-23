@@ -99,7 +99,7 @@ const cameraHeight = ref(70)  // Initial camera height
 
 // Game settings
 const PANEL_SIZE = 30
-const WALL_HEIGHT = 2
+const WALL_HEIGHT = 5
 const WALL_THICKNESS = 1
 const MIN_CAMERA_HEIGHT = 40
 const MAX_CAMERA_HEIGHT = 70
@@ -162,7 +162,11 @@ const createScene = () => {
         { size: [PANEL_SIZE, WALL_HEIGHT, WALL_THICKNESS], position: [0, WALL_HEIGHT/2, -PANEL_SIZE/2] },
         { size: [PANEL_SIZE, WALL_HEIGHT, WALL_THICKNESS], position: [0, WALL_HEIGHT/2, PANEL_SIZE/2] },
         { size: [WALL_THICKNESS, WALL_HEIGHT, PANEL_SIZE], position: [-PANEL_SIZE/2, WALL_HEIGHT/2, 0] },
-        { size: [WALL_THICKNESS, WALL_HEIGHT, PANEL_SIZE], position: [PANEL_SIZE/2, WALL_HEIGHT/2, 0] }
+        { size: [WALL_THICKNESS, WALL_HEIGHT, PANEL_SIZE], position: [PANEL_SIZE/2, WALL_HEIGHT/2, 0] },
+        // N-S Divider
+        { size: [WALL_THICKNESS, WALL_HEIGHT, PANEL_SIZE], position: [0, WALL_HEIGHT/2, 0] },
+        // E-W Divider
+        { size: [PANEL_SIZE, WALL_HEIGHT * 10, WALL_THICKNESS], position: [0, WALL_HEIGHT, 0] }
     ]
 
     gameInstance.value.constructWalls(walls)

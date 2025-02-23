@@ -46,8 +46,8 @@ export class Game{
         // Create renderer
         this.renderer = new GameRenderer(canvas);
 
-        // Add Board to the scene
-        this.constructBoard(this.gameOptions.PANEL_SIZE, this.gameOptions.PANEL_SIZE);
+        // Add Board to the Scene
+        this.constructBoard(this.gameOptions.PANEL_WIDTH, this.gameOptions.PANEL_LENGTH);
 
         // Add Game Ball
         this.gameBall = this.constructGameBall();
@@ -89,107 +89,119 @@ export class Game{
 
     updateCameraPosition = () => {
         if (this.camera && this.gameBall) {
-            // Position camera above and slightly behind the ball
-            this.camera.position.setX(this.gameBall.ball.position.x)
-            this.camera.position.setZ(this.gameBall.ball.position.z + 10) // Offset camera behind ball
-            this.camera.position.setY(this.cameraHeight.value)
+            // Get ball position and velocity
+            const ballPosition = this.gameBall.ball.position;
+            const ballVelocity = this.gameBall.ball.velocity;
+
+            // Calculate the speed of the ball (magnitude of velocity vector)
+            const ballSpeed = Math.sqrt(ballVelocity.x ** 2 + ballVelocity.z ** 2);
+
+            // Use speed to alter camera height and lag
+            const minCameraHeight = this.gameOptions.MIN_CAMERA_HEIGHT;
+            const maxCameraHeight = this.gameOptions.MAX_CAMERA_HEIGHT;
+
+            // Map speed to camera height (higher speed = lower camera height)
+            const cameraHeight = maxCameraHeight - ((ballSpeed * 2) * (maxCameraHeight - minCameraHeight));
+
+            // Ensure camera height doesn't go below the ball's position
+            const adjustedCameraHeight = Math.max(cameraHeight, ballPosition.y + this.gameOptions.BALL_RADIUS);
+
+            // Map speed to camera lag (higher speed = more lag behind the ball)
+            const baseLagDistance = 10; // Default lag at zero speed
+            const maxLagDistance = 50; // Maximum lag at full speed
+            const cameraLag = baseLagDistance + (ballSpeed * (maxLagDistance - baseLagDistance));
+
+            // Update camera position dynamically
+            this.camera.position.setX(ballPosition.x); // Follow the ball's x-coordinate
+            this.camera.position.setY(adjustedCameraHeight); // Dynamic height
+            this.camera.position.setZ(ballPosition.z + cameraLag); // Dynamic lag behind ball
 
             // Make camera look at the ball's position
             this.camera.lookAt(
-                this.gameBall.ball.position.x,
-                this.gameBall.ball.position.y,
-                this.gameBall.ball.position.z
-            )
+                ballPosition.x,
+                ballPosition.y,
+                ballPosition.z
+            );
         }
-    }
+    };
 
     // Game.ts
-    private checkCollisions(position: THREE.Vector3, velocity: THREE.Vector3): boolean {
-        const directions = [
-            new THREE.Vector3(1, 0, 0),   // right
-            new THREE.Vector3(-1, 0, 0),  // left
-            new THREE.Vector3(0, 0, 1),   // forward
-            new THREE.Vector3(0, 0, -1),  // backward
-            new THREE.Vector3(1, 0, 1).normalize(),   // forward-right
-            new THREE.Vector3(-1, 0, 1).normalize(),  // forward-left
-            new THREE.Vector3(1, 0, -1).normalize(),  // backward-right
-            new THREE.Vector3(-1, 0, -1).normalize()  // backward-left
-        ];
-
-        let hasCollision = false;
+    private handleWallCollisions(position: THREE.Vector3, velocity: THREE.Vector3): void {
         const ballRadius = this.gameOptions.BALL_RADIUS;
 
-        for (const direction of directions) {
-            this.raycaster.set(position, direction);
-            const intersects = this.raycaster.intersectObjects(this.wallObjects);
+        // Check all walls
+        this.wallObjects.forEach(wall => {
+            const wallBox = new THREE.Box3().setFromObject(wall);
 
-            if (intersects.length > 0 && intersects[0].distance < ballRadius + 0.05) {
-                hasCollision = true;
-                const collision = intersects[0];
+            // First check if we're within the wall's horizontal bounds
+            if (wallBox.min.x - ballRadius < position.x && position.x < wallBox.max.x + ballRadius &&
+                wallBox.min.z - ballRadius < position.z && position.z < wallBox.max.z + ballRadius) {
 
-                if (collision.face) {
-                    // Get the normal of the wall we hit
-                    const normal = collision.face.normal.clone();
+                // Then check vertical collision
+                if (position.y < wallBox.max.y && position.y + ballRadius > wallBox.min.y) {
+                    // Determine which side of the wall we hit
+                    const distToLeft = Math.abs(position.x - wallBox.min.x);
+                    const distToRight = Math.abs(position.x - wallBox.max.x);
+                    const distToFront = Math.abs(position.z - wallBox.min.z);
+                    const distToBack = Math.abs(position.z - wallBox.max.z);
+                    const distToTop = Math.abs(position.y - wallBox.max.y);
 
-                    // Calculate dot product to determine velocity into wall
-                    const dot = velocity.dot(normal);
+                    const minDist = Math.min(distToLeft, distToRight, distToFront, distToBack, distToTop);
 
-                    if (dot < 0) {
-                        // Calculate the velocity component going into the wall
-                        const normalVelocity = normal.multiplyScalar(dot);
-
-                        // Calculate the velocity component parallel to the wall
-                        const tangentVelocity = new THREE.Vector3()
-                            .copy(velocity)
-                            .sub(normalVelocity);
-
-                        // Reflect the normal component and apply damping
-                        normalVelocity.multiplyScalar(-this.gameOptions.BOUNCE_DAMPING);
-
-                        // Keep the tangent component (with some friction)
-                        tangentVelocity.multiplyScalar(1); // No friction
-
-                        // Combine the velocities
-                        velocity.copy(normalVelocity).add(tangentVelocity);
+                    if (minDist === distToTop && velocity.y < 0) {
+                        // Hit top of wall
+                        position.y = wallBox.max.y + ballRadius;
+                        velocity.y = -velocity.y * this.gameOptions.BOUNCE_DAMPING;
                     }
-
-                    // Push ball out of wall with minimal buffer
-                    const penetrationDepth = ballRadius - collision.distance;
-                    if (penetrationDepth > 0) {
-                        position.add(normal.multiplyScalar(penetrationDepth + 0.001));
+                    else if (minDist === distToLeft && velocity.x > 0) {
+                        // Hit left side
+                        position.x = wallBox.min.x - ballRadius;
+                        velocity.x = -velocity.x * this.gameOptions.BOUNCE_DAMPING;
+                    }
+                    else if (minDist === distToRight && velocity.x < 0) {
+                        // Hit right side
+                        position.x = wallBox.max.x + ballRadius;
+                        velocity.x = -velocity.x * this.gameOptions.BOUNCE_DAMPING;
+                    }
+                    else if (minDist === distToFront && velocity.z > 0) {
+                        // Hit front side
+                        position.z = wallBox.min.z - ballRadius;
+                        velocity.z = -velocity.z * this.gameOptions.BOUNCE_DAMPING;
+                    }
+                    else if (minDist === distToBack && velocity.z < 0) {
+                        // Hit back side
+                        position.z = wallBox.max.z + ballRadius;
+                        velocity.z = -velocity.z * this.gameOptions.BOUNCE_DAMPING;
                     }
                 }
             }
-        }
+        });
 
-        // Fallback boundary check with similar physics
-        const bounds = (this.gameOptions.PANEL_SIZE / 2) - ballRadius - (this.gameOptions.WALL_THICKNESS / 2);
+        // Always check board boundaries
+        const xBounds = (this.gameOptions.PANEL_WIDTH / 2) - ballRadius;
+        const zBounds = (this.gameOptions.PANEL_LENGTH / 2) - ballRadius;
 
-        // Handle X bounds
-        if (Math.abs(position.x) > bounds) {
-            const sign = Math.sign(position.x);
-            position.x = sign * bounds;
+        position.x = Math.max(-xBounds, Math.min(xBounds, position.x));
+        position.z = Math.max(-zBounds, Math.min(zBounds, position.z));
 
-            // Only affect X component of velocity
-            if (sign * velocity.x > 0) {
-                velocity.x = -velocity.x * this.gameOptions.BOUNCE_DAMPING;
+    }
+
+    // Add a helper method to predict if a move would result in collision
+    private predictCollision(position: THREE.Vector3, velocity: THREE.Vector3): boolean {
+        const nextPosition = position.clone().add(velocity);
+        const ballRadius = this.gameOptions.BALL_RADIUS;
+
+        for (const wall of this.wallObjects) {
+            const wallBox = new THREE.Box3().setFromObject(wall);
+
+            // Check if next position would be inside wall bounds
+            if (wallBox.min.x - ballRadius < nextPosition.x && nextPosition.x < wallBox.max.x + ballRadius &&
+                wallBox.min.z - ballRadius < nextPosition.z && nextPosition.z < wallBox.max.z + ballRadius &&
+                nextPosition.y < wallBox.max.y && nextPosition.y + ballRadius > wallBox.min.y) {
+                return true;
             }
-            hasCollision = true;
         }
-
-        // Handle Z bounds
-        if (Math.abs(position.z) > bounds) {
-            const sign = Math.sign(position.z);
-            position.z = sign * bounds;
-
-            // Only affect Z component of velocity
-            if (sign * velocity.z > 0) {
-                velocity.z = -velocity.z * this.gameOptions.BOUNCE_DAMPING;
-            }
-            hasCollision = true;
-        }
-
-        return hasCollision;
+        return false;
     }
 
     updatePhysics = (tilt: Vector2D, acceleration: Vector3D): Vector2D => {
@@ -198,6 +210,7 @@ export class Game{
         const velocity = this.gameBall.ball.velocity;
         const position = this.gameBall.ball.position;
         const originalPosition = position.clone();
+        const originalVelocity = velocity.clone();
 
         // Apply forces
         velocity.x += tilt.x * this.gameOptions.SENSITIVITY;
@@ -210,17 +223,20 @@ export class Game{
         velocity.x *= this.gameOptions.FRICTION;
         velocity.z *= this.gameOptions.FRICTION;
 
-        // Update position
-        position.add(velocity);
+        // Check if next move would cause collision
+        if (this.predictCollision(position, velocity)) {
+            // If collision predicted, move in smaller steps
+            const steps = 5;  // Divide movement into 5 steps
+            const stepVelocity = velocity.clone().multiplyScalar(1/steps);
 
-        // Handle collisions
-        if (this.checkCollisions(position, velocity)) {
-            // Double check we're not stuck
-            if (this.checkCollisions(position, velocity)) {
-                position.copy(originalPosition);
-                // Allow slight movement along walls even when "stuck"
-                position.add(velocity.clone().multiplyScalar(0.1));
+            for (let i = 0; i < steps; i++) {
+                position.add(stepVelocity);
+                this.handleWallCollisions(position, velocity);
             }
+        } else {
+            // No collision predicted, move normally
+            position.add(velocity);
+            this.handleWallCollisions(position, velocity);
         }
 
         // Ground handling
@@ -231,7 +247,7 @@ export class Game{
             }
         }
 
-        // Update ball rotation and shadow
+        // Update ball rotation and shadow as before
         this.gameBall.ball.rotation.x += velocity.z * 0.5;
         this.gameBall.ball.rotation.z -= velocity.x * 0.5;
 
