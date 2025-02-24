@@ -6,6 +6,7 @@ export class GameRenderer extends WebGLRenderer {
             canvas: canvas.value,
             antialias: true
         });
+        this.setPixelRatio(window.devicePixelRatio);
         this.setSize(window.innerWidth, window.innerHeight);
     }
 }

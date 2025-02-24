@@ -59,6 +59,8 @@ export class MasterBall extends THREE.Mesh {
         this.position.set(0, gameOptions.BALL_RADIUS, 0)
         this.velocity = new THREE.Vector3()
         this.jumpController = new JumpController(this.gameOptions)
+        this.castShadow = true
+        this.receiveShadow = true
     }
 
     startJumpCharge(): void {

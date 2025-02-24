@@ -19,6 +19,7 @@ export class Game{
     camera: MainCamera
     renderer: GameRenderer
     gameBall: GameBall
+    board: MainBoard
     gameOptions: typeof GAME_CONFIG
     cameraHeight: Ref<number>
     private raycaster: THREE.Raycaster
@@ -43,11 +44,16 @@ export class Game{
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
 
+        const helper = new THREE.CameraHelper( directionalLight.shadow.camera );
+        this.scene.add( helper );
+
         // Create renderer
         this.renderer = new GameRenderer(canvas);
+        this.renderer.shadowMap.enabled = true;
 
         // Add Board to the Scene
-        this.constructBoard(this.gameOptions.PANEL_WIDTH, this.gameOptions.PANEL_LENGTH);
+        this.board = new MainBoard(this.gameOptions.PANEL_WIDTH, this.gameOptions.PANEL_LENGTH);
+        this.scene.add(this.board);
 
         // Add Game Ball
         this.gameBall = this.constructGameBall();
@@ -59,12 +65,10 @@ export class Game{
 
         // Create raycaster for collision detection
         this.raycaster = new THREE.Raycaster();
-    }
 
-    constructBoard = (width: number, height: number): void => {
-        console.log('Creating the board...');
-        // Create board and add it to the scene
-        this.scene.add(new MainBoard(width, height))
+        // Create grid helper
+        const gridHelper = new THREE.GridHelper(100, 100);
+        this.scene.add(gridHelper);
     }
 
     constructWalls = (walls: GameWall[]):void => {

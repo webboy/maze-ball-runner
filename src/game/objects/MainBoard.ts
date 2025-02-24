@@ -72,5 +72,8 @@ export class MainBoard extends Mesh {
         super(geometry, material);
 
         this.rotation.x = -Math.PI / 2;
+
+        // Enable shadows
+        this.receiveShadow = true;
     }
 }
